@@ -1,0 +1,90 @@
+name: BE7000
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Package and check linux-arm64-musl
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        with:
+          persist-credentials: false
+      - name: Package the upstream static release
+        id: package
+        run: |
+          upstream="$RUNNER_TEMP/sing-box-1.14.4-linux-arm64-musl.tar.gz"
+          curl --fail --silent --show-error --location \
+            --output "$upstream" \
+            https://github.com/SagerNet/sing-box/releases/download/v1.14.4/sing-box-1.14.4-linux-arm64-musl.tar.gz
+          archive=$(python3 release/package-be7000.py "$upstream")
+          printf 'archive=%s\n' "$archive" >> "$GITHUB_OUTPUT"
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+      - name: Check executable and configuration
+        run: |
+          set -euo pipefail
+          binary="$RUNNER_TEMP/sing-box-1.14.4-linux-arm64-musl/sing-box"
+          headers=$(LC_ALL=C readelf -h -l -d "$binary")
+          grep -Eq 'Machine:[[:space:]]+AArch64' <<< "$headers"
+          if grep -Eq 'INTERP|\(NEEDED\)' <<< "$headers"; then
+            echo "BE7000 executable must be statically linked" >&2
+            exit 1
+          fi
+          "$binary" version
+          test "$("$binary" version --name)" = 1.14.4
+          config="$RUNNER_TEMP/be7000-smoke.json"
+          cat > "$config" <<'JSON'
+          {
+            "dns": {
+              "servers": [{"type": "udp", "tag": "dns-local", "server": "127.0.0.1"}]
+            },
+            "inbounds": [
+              {"type": "socks", "listen": "127.0.0.1", "listen_port": 1080},
+              {"type": "tun", "address": ["198.18.0.1/30"], "stack": "mixed"}
+            ],
+            "outbounds": [
+              {"type": "direct", "tag": "direct"},
+              {
+                "type": "vless", "tag": "proxy",
+                "server": "192.0.2.1", "server_port": 443,
+                "uuid": "00000000-0000-4000-8000-000000000001",
+                "flow": "xtls-rprx-vision",
+                "tls": {
+                  "enabled": true, "server_name": "example.com",
+                  "utls": {"enabled": true, "fingerprint": "chrome"},
+                  "reality": {
+                    "enabled": true,
+                    "public_key": "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA",
+                    "short_id": "0123456789abcdef"
+                  }
+                }
+              }
+            ],
+            "route": {"final": "proxy"}
+          }
+          JSON
+          "$binary" check -c "$config"
+      - name: Check executable in Alpine (musl)
+        run: |
+          docker run --rm --network none \
+            --volume "$RUNNER_TEMP/sing-box-1.14.4-linux-arm64-musl/sing-box:/sing-box:ro" \
+            --volume "$RUNNER_TEMP/be7000-smoke.json:/config.json:ro" \
+            alpine:3.22 /sing-box check -c /config.json
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: sing-box-xiaomi-be7000-linux-arm64-musl
+          path: |
+            ${{ steps.package.outputs.archive }}
+            ${{ steps.package.outputs.archive }}.sha256
+          if-no-files-found: error
