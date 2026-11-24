@@ -1,20 +1,21 @@
-# xiaomi-be7000-singbox 仓库工作规则
+# xiaomi-be7000-singbox Repository Instructions
 
-## 工作范围
+## Scope
 
-- 开始前核对仓库根目录、目标分支、已有改动和受影响目录的规则。变更按当前任务授权执行，保留用户和其他任务的工作。
-- Git 只跟踪构建源码、构建配置和脚本、测试与验证代码，以及必要的资源和文档。维护中的配置和规则数据属于源码。构建包、验证结果和临时文件通过项目的产物渠道交付。
+- Confirm the repository root, target branch, worktree status, and applicable instructions before editing. Keep changes within the authorized task and preserve existing work.
+- Track build source, build configuration and scripts, test and validation code, and essential resources and documentation. Maintained configuration and rule data are source. Keep temporary files in the task directory. Deliver build packages and validation outputs through the project artifact channel when authorized.
 
-## GitHub 操作
+## GitHub
 
-- 优先使用已验证的官方 `gh`。Windows 上按可信安装证据或官方发行包核验实际可执行文件，确认绝对路径和 SHA-256 后再运行。专用子命令缺失时使用 `gh api`。同一已授权的只读操作可在 CLI 无法验证或运行且修复不在范围内时使用已授权连接器。遇到访问拒绝时遵守原权限边界。
-- 创建或配置 GitHub 仓库时启用并核实 `delete_branch_on_merge: true`。合并 PR 前核对源仓库的设置，包括 fork；在授权内启用该设置，并报告权限或规则阻止的情况。
-- 修改默认分支前检查保护规则、其他进行中的写入和预期 HEAD。通过分支规则要求的检查后再合并，并核对远端提交及源分支清理结果。
-- 主 README 使用一个 H1，介绍项目名称与用途。按实际需要依次使用功能、快速开始、配置、构建与测试、仓库结构、发布和许可证这些二级标题。沿用原有语言，命令使用带语言的代码块，仓库内文件使用相对链接。
-- 源自上游时，在主 README 标明上游名称和链接，已知时记录来源标签或提交。引入的组件可在 README 或链接的第三方声明中署名，并保留相关许可和版权声明。
+- Prefer the verified official `gh`. On Windows, resolve the executable without running it and verify its contents with trusted installer evidence or an official release package. Use the verified absolute path and SHA-256. Use `gh api` for operations without a dedicated command. An authorized connector may perform the same read-only operation if the CLI is unavailable or unverified and repair is outside scope. Respect access denials.
+- Every GitHub repository must have an active `Protect main` ruleset for its default branch. Require pull requests and block branch deletion and force pushes. Require status checks that actually run on pull requests targeting the protected branch.
+- Enable and verify `delete_branch_on_merge: true` when creating or configuring a repository. Before merging a pull request, verify this setting in its source repository, including a fork, and report any limit on automatic branch deletion.
+- Before writing to a shared branch, verify the current head and check for competing writers. Follow the repository rules for reviews and checks, and verify the remote commit and source branch cleanup after merging.
+- Maintain one H1 in the primary README, with the project name and purpose. Where applicable, keep the H2 order Features, Quick Start, Configuration, Build and Test, Repository Structure, Releases, and License. Use the established language, fenced code blocks with language identifiers, and relative links for repository files.
+- Name and link the upstream repository in the README, and record the source tag or commit when known. Credit imported components in the README or linked third-party notices and preserve applicable license and copyright notices.
 
-## 构建与验证
+## Build and Verification
 
-- 上游为 SagerNet/sing-box，来源基线见 [README.md](README.md)。同步上游时核对实际提交、子模块版本和许可证，保留现有定制。
-- 从 `go.mod`、`Makefile` 和 `.github/workflows/` 确定当前 Go 版本、构建目标、构建标签和测试入口。按任务涉及的平台执行相应验证，保留编译所需的嵌入资源。
-- BE7000 相关改动先核对 Linux ARM64 兼容性。报告区分本地或 CI 构建与路由器验收。发布包、容器镜像和设备部署须在任务授权内。
+- See [README.md](README.md) for the SagerNet/sing-box source and imported revision. Check the source commit, submodules, and licenses when updating upstream code. Preserve project-specific changes.
+- Use `go.mod`, `Makefile`, and `.github/workflows/` to determine the current Go version, build targets, build tags, and test entry points. Verify the affected platforms and keep resources embedded by supported builds.
+- Check Linux ARM64 compatibility for BE7000 changes. Report local or CI builds separately from router acceptance. Keep releases, container publication, and deployment within task authorization.
