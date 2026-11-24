@@ -1,12 +1,13 @@
-# sing-box
+# xiaomi-be7000-singbox
 
-The universal proxy platform.
+The source code comes from [SagerNet/sing-box](https://github.com/SagerNet/sing-box), a universal proxy platform.
+The imported source baseline is commit [`039d829`](https://github.com/SagerNet/sing-box/commit/039d829d20c7bfb963dd73113afa9f2d1f080a70) on the upstream `testing` branch.
 
 [![Packaging status](https://repology.org/badge/vertical-allrepos/sing-box.svg)](https://repology.org/project/sing-box/versions)
 
-## Documentation
+## Configuration
 
-https://sing-box.sagernet.org
+See the [upstream sing-box documentation](https://sing-box.sagernet.org).
 
 ## License
 
