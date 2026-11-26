@@ -178,9 +178,6 @@ func newAppleSessionConfig(ctx context.Context, options option.HTTPClientOptions
 	if options.HTTP2Options != (option.HTTP2Options{}) {
 		return appleSessionConfig{}, E.New("HTTP/2 options are unsupported in Apple HTTP engine")
 	}
-	if options.HTTP3Options != (option.QUICOptions{}) {
-		return appleSessionConfig{}, E.New("QUIC options are unsupported in Apple HTTP engine")
-	}
 
 	tlsOptions := common.PtrValueOrDefault(options.TLS)
 	if tlsOptions.Engine != "" {

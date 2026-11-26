@@ -206,15 +206,6 @@ func TestNewAppleSessionConfig(t *testing.T) {
 			wantErr: "HTTP/2 options are unsupported in Apple HTTP engine",
 		},
 		{
-			name: "quic options unsupported",
-			options: option.HTTPClientOptions{
-				HTTP3Options: option.QUICOptions{
-					InitialPacketSize: 1200,
-				},
-			},
-			wantErr: "QUIC options are unsupported in Apple HTTP engine",
-		},
-		{
 			name: "tls engine unsupported",
 			options: option.HTTPClientOptions{
 				OutboundTLSOptionsContainer: option.OutboundTLSOptionsContainer{

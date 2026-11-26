@@ -1,5 +1,3 @@
-//go:build !with_acme
-
 package tls
 
 import (
@@ -11,5 +9,5 @@ import (
 )
 
 func startACME(ctx context.Context, logger logger.Logger, options option.InboundACMEOptions) (managedCertificateProvider, error) {
-	return nil, E.New(`ACME is not included in this build, rebuild with -tags with_acme`)
+	return nil, E.New(`ACME is unavailable in the BE7000 build`)
 }

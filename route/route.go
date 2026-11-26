@@ -796,42 +796,48 @@ func (r *Router) actionSniff(
 		if len(inputPacketBuffers) > 0 {
 			err = sniff.PeekPacket(ctx, metadata, inputPacketBuffers[0].Buffer.Bytes(), packetSniffers...)
 		} else {
+			type readResult struct {
+				destination M.Socksaddr
+				err         error
+			}
 			sniffBuffer := buf.NewPacket()
-			var destination M.Socksaddr
-			done := make(chan struct{})
+			done := make(chan readResult)
 			go func() {
 				sniffTimeout := C.ReadPayloadTimeout
 				if action.Timeout > 0 {
 					sniffTimeout = action.Timeout
 				}
 				inputPacketConn.SetReadDeadline(time.Now().Add(sniffTimeout))
-				destination, err = inputPacketConn.ReadPacket(sniffBuffer)
+				destination, readErr := inputPacketConn.ReadPacket(sniffBuffer)
 				inputPacketConn.SetReadDeadline(time.Time{})
-				close(done)
+				select {
+				case done <- readResult{destination, readErr}:
+				case <-ctx.Done():
+					sniffBuffer.Release()
+				}
 			}()
 			select {
-			case <-done:
+			case result := <-done:
+				err = result.err
+				if err != nil {
+					sniffBuffer.Release()
+					if !E.IsTimeout(err) {
+						fatalErr = err
+						return
+					}
+				} else {
+					err = sniff.PeekPacket(ctx, metadata, sniffBuffer.Bytes(), packetSniffers...)
+					packetBuffer := N.NewPacketBuffer()
+					*packetBuffer = N.PacketBuffer{
+						Buffer:      sniffBuffer,
+						Destination: result.destination,
+					}
+					packetBuffers = append(packetBuffers, packetBuffer)
+				}
 			case <-ctx.Done():
 				inputPacketConn.Close()
-				<-done
-				sniffBuffer.Release()
 				fatalErr = ctx.Err()
 				return
-			}
-			if err != nil {
-				sniffBuffer.Release()
-				if !E.IsTimeout(err) {
-					fatalErr = err
-					return
-				}
-			} else {
-				err = sniff.PeekPacket(ctx, metadata, sniffBuffer.Bytes(), packetSniffers...)
-				packetBuffer := N.NewPacketBuffer()
-				*packetBuffer = N.PacketBuffer{
-					Buffer:      sniffBuffer,
-					Destination: destination,
-				}
-				packetBuffers = append(packetBuffers, packetBuffer)
 			}
 		}
 		metadata.SnifferNames = action.SnifferNames

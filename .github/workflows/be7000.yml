@@ -37,19 +37,7 @@ jobs:
           go-version: ${{ steps.spec.outputs.go }}
           cache-dependency-path: go.sum
       - name: Check module metadata
-        id: modules
         run: go mod tidy -diff
-      - name: Collect module metadata if out of date
-        if: failure() && steps.modules.outcome == 'failure'
-        run: go mod tidy
-      - name: Upload corrected module metadata
-        if: failure() && steps.modules.outcome == 'failure'
-        uses: actions/upload-artifact@v7
-        with:
-          name: be7000-go-modules
-          path: |
-            go.mod
-            go.sum
       - name: Install the musl toolchain
         run: |
           sudo apt-get update
@@ -119,7 +107,7 @@ jobs:
           tags=$(sed -n 's/^Tags: //p' <<< "$version_info")
           test "$tags" = 'with_utls,with_musl,badlinkname,tfogo_checklinkname0'
           dependencies=$(go version -m "$binary")
-          if grep -Eq 'github.com/sagernet/(quic-go|sing-quic|cronet-go|gvisor|tailscale|wireguard-go)([[:space:]/]|$)' <<< "$dependencies"; then
+          if grep -Eq 'github.com/sagernet/(quic-go|sing-quic|cronet-go|gvisor|tailscale|wireguard-go|sing-anytls|sing-snell|sing-openvpn|sing-openconnect)([[:space:]/]|$)' <<< "$dependencies"; then
             echo "The executable links an excluded module." >&2
             exit 1
           fi
@@ -171,6 +159,12 @@ jobs:
           }
           JSON
           "$binary" check -c "$config"
+          jq '.dns.servers[0].type = "quic"' "$config" > "$RUNNER_TEMP/rejected.json"
+          if "$binary" check -c "$RUNNER_TEMP/rejected.json" > "$RUNNER_TEMP/rejected.log" 2>&1; then
+            echo "The executable unexpectedly accepts DNS over QUIC." >&2
+            exit 1
+          fi
+          grep -F 'unknown transport type: quic' "$RUNNER_TEMP/rejected.log"
       - name: Check executable in Alpine (musl)
         run: |
           docker run --rm --network none \
