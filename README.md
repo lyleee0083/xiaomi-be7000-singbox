@@ -1,6 +1,6 @@
 # xiaomi-be7000-singbox
 
-A sing-box package for the Xiaomi BE7000 router and its Cortex-A73 CPU.
+A sing-box executable for the Xiaomi BE7000 router and its Cortex-A73 CPU.
 
 The source code comes from [SagerNet/sing-box](https://github.com/SagerNet/sing-box), a universal proxy platform.
 The imported source baseline is commit [`039d829`](https://github.com/SagerNet/sing-box/commit/039d829d20c7bfb963dd73113afa9f2d1f080a70) on the upstream `testing` branch.
@@ -13,7 +13,13 @@ The BE7000 package builds the full-featured static ARM64 executable from the ups
 
 ## Quick Start
 
-Download the archive and checksum from a successful [BE7000 Actions run](https://github.com/lyleee0083/xiaomi-be7000-singbox/actions/workflows/be7000.yml). Version `0.0.2` uses the same version in the archive filename, extracted directory, `VERSION`, `BUILD-INFO.json`, and `sing-box version --name`. The detailed version output also identifies the upstream version.
+Download the executable and `SHA256SUMS.txt` from [GitHub Releases](https://github.com/lyleee0083/xiaomi-be7000-singbox/releases/latest). Check the digest and grant execute permission before running it.
+
+```sh
+sha256sum -c SHA256SUMS.txt
+chmod +x sing-box-xiaomi-be7000-0.0.2
+./sing-box-xiaomi-be7000-0.0.2 version
+```
 
 ## Configuration
 
@@ -21,7 +27,7 @@ See the [upstream sing-box documentation](https://sing-box.sagernet.org).
 
 ## Build and Test
 
-The [BE7000 workflow](.github/workflows/be7000.yml) prepares the pinned upstream Chromium musl toolchain and invokes [the build script](release/build-be7000.sh). It verifies release metadata and static linking and validates a sample mixed TUN, SOCKS and VLESS REALITY configuration on Ubuntu ARM64 and Alpine. Successful runs provide the tarball and checksum.
+The [BE7000 workflow](.github/workflows/be7000.yml) prepares the pinned upstream Chromium musl toolchain and invokes [the build script](release/build-be7000.sh). It verifies the executable filename, checksum, version and static linking. It also validates a sample mixed TUN, SOCKS and VLESS REALITY configuration on Ubuntu ARM64 and Alpine. Successful runs provide the executable and `SHA256SUMS.txt` as direct files.
 
 ## License
 

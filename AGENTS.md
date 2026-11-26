@@ -22,5 +22,6 @@
 
 ## Versioned deliverables
 
-- Use [release/be7000.json](release/be7000.json) for the BE7000 release version and upstream provenance. For changes affecting the delivery, advance the release version, rebuild the Linux ARM64 musl executable, and deliver the latest verified archive and checksum.
-- Verify the archive filename, extracted directory, package metadata and `sing-box version --name` all report the release version. Keep the upstream version and source revision in build metadata.
+- Use [release/be7000.json](release/be7000.json) for the BE7000 release version and upstream provenance. For changes affecting the versioned executable, advance the version and rebuild the Linux ARM64 musl executable. Verify that the direct filename and `sing-box version --name` report the same version.
+- Deliver the executable directly with `SHA256SUMS.txt`. Publish the same verified build output files with identical filenames and SHA-256 hashes. Keep upstream provenance in build metadata.
+- Verify that the Release tag points to the approved build's source commit and that all published assets match the build delivery and checksum manifest.
