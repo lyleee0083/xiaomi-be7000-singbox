@@ -19,3 +19,8 @@
 - See [README.md](README.md) for the SagerNet/sing-box source and imported revision. Check the source commit, submodules, and licenses when updating upstream code. Preserve project-specific changes.
 - Use `go.mod`, `Makefile`, and `.github/workflows/` to determine the current Go version, build targets, build tags, and test entry points. Verify the affected platforms and keep resources embedded by supported builds.
 - Check Linux ARM64 compatibility for BE7000 changes. Report local or CI builds separately from router acceptance. Keep releases, container publication, and deployment within task authorization.
+
+## Versioned deliverables
+
+- Use [release/be7000.json](release/be7000.json) for the BE7000 release version and upstream provenance. For changes affecting the delivery, advance the release version, rebuild the Linux ARM64 musl executable, and deliver the latest verified archive and checksum.
+- Verify the archive filename, extracted directory, package metadata and `sing-box version --name` all report the release version. Keep the upstream version and source revision in build metadata.
