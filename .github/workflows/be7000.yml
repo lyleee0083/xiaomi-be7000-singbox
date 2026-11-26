@@ -121,7 +121,7 @@ jobs:
                 {"type": "hosts", "tag": "hosts", "predefined": {"example.com": ["192.0.2.1"]}}
               ],
               "rules": [
-                {"query_type": ["AAAA"], "action": "respond", "rcode": "REFUSED"}
+                {"query_type": ["AAAA"], "action": "predefined", "rcode": "REFUSED"}
               ],
               "final": "dns-local"
             },
