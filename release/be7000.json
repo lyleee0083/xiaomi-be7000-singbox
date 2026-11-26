@@ -2,6 +2,6 @@
   "version": "0.0.3",
   "upstream_version": "1.15.0-alpha.14-dev",
   "upstream_branch": "testing",
-  "upstream_revision": "491b845be7ac4bdaa3e3f9443505eb57e061a28c",
+  "upstream_revision": "a93b9e8a8474253dfcab8d76aab647ea98cfcacc",
   "go_version": "1.27.4"
 }
