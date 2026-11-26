@@ -22,7 +22,7 @@ if [[ -n "$source_status" ]] || ! git -C "$source_dir" merge-base --is-ancestor 
 fi
 
 cd -- "$source_dir"
-tags="$(cat release/DEFAULT_BUILD_TAGS),with_musl"
+tags="$(cat release/DEFAULT_BUILD_TAGS),with_gvisor,with_musl"
 ldflags=$(cat release/LDFLAGS)
 CGO_ENABLED=1 GOOS=linux GOARCH=arm64 GOARM64=v8.0 GOTOOLCHAIN=local GOWORK=off \
     go build -mod=readonly -trimpath -buildvcs=true -tags "$tags" \

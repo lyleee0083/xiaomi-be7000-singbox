@@ -23,7 +23,7 @@ chmod +x sing-box-xiaomi-be7000-0.0.3
 
 ## Configuration
 
-Omit the TUN `stack` field to use the sing-tun TCP/IP stack and its TCP fast path. See the [upstream sing-box documentation](https://sing-box.sagernet.org).
+Omit the TUN `stack` field to use the sing-tun TCP/IP stack and its TCP fast path. The BE7000 build also supports existing `mixed` and `gvisor` configurations. See the [upstream sing-box documentation](https://sing-box.sagernet.org).
 
 ## Build and Test
 

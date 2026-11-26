@@ -108,7 +108,7 @@ jobs:
           test "$("$binary" version --name)" = "$BUILD_VERSION"
           grep -Fx "Upstream version: $UPSTREAM_VERSION" <<< "$version_info"
           grep -Fx "Revision: $BUILD_REVISION" <<< "$version_info"
-          grep -E '^Tags: .*with_naive_outbound.*with_musl' <<< "$version_info"
+          grep -E '^Tags: .*with_naive_outbound.*with_gvisor.*with_musl' <<< "$version_info"
           config="$RUNNER_TEMP/be7000-smoke.json"
           cat > "$config" <<'JSON'
           {
@@ -141,6 +141,9 @@ jobs:
           }
           JSON
           "$binary" check -c "$config"
+          mixed_config="$RUNNER_TEMP/be7000-smoke-mixed.json"
+          jq '(.inbounds[] | select(.type == "tun") | .stack) = "mixed"' "$config" > "$mixed_config"
+          "$binary" check -c "$mixed_config"
       - name: Check executable in Alpine (musl)
         run: |
           docker run --rm --network none \
