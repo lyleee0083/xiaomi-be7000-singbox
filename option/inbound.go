@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	C "github.com/sagernet/sing-box/constant"
 	"github.com/sagernet/sing-box/schema"
 	E "github.com/sagernet/sing/common/exceptions"
 	"github.com/sagernet/sing/common/json"
@@ -63,7 +62,7 @@ func (h Inbound) DescribeSchema(builder schema.Builder) (*schema.Node, error) {
 		if registry == nil {
 			return nil, E.New("missing inbound options registry in context")
 		}
-		return registryUnion(builder, registry, []string{C.TypeShadowsocksR}, true)
+		return registryUnion(builder, registry, nil, true)
 	})
 }
 

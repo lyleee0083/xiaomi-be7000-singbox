@@ -22,15 +22,11 @@ if [[ -n "$source_status" ]] || ! git -C "$source_dir" merge-base --is-ancestor 
 fi
 
 cd -- "$source_dir"
-tags="$(cat release/DEFAULT_BUILD_TAGS),with_musl"
-if [[ ",$tags," == *,with_gvisor,* ]]; then
-    echo "BE7000 builds require the Go TUN stack without with_gvisor." >&2
-    exit 1
-fi
+tags="with_utls,with_musl,badlinkname,tfogo_checklinkname0"
 ldflags=$(cat release/LDFLAGS)
-CGO_ENABLED=1 GOOS=linux GOARCH=arm64 GOARM64=v8.0 GOTOOLCHAIN=local GOWORK=off \
+CC=musl-gcc CGO_ENABLED=1 GOOS=linux GOARCH=arm64 GOARM64=v8.0 GOTOOLCHAIN=local GOWORK=off \
     go build -mod=readonly -trimpath -buildvcs=true -tags "$tags" \
-        -ldflags "$ldflags -X github.com/sagernet/sing-box/constant.Version=$upstream -X main.distributionVersion=$version -s -w -buildid=" \
+        -ldflags "$ldflags -linkmode=external -extldflags=-static -X github.com/sagernet/sing-box/constant.Version=$upstream -X main.distributionVersion=$version -s -w -buildid=" \
         -o "$output_dir/$name" ./cmd/sing-box
 
 cd -- "$output_dir"

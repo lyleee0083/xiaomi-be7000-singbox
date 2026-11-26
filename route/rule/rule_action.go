@@ -496,8 +496,6 @@ func (r *RuleActionSniff) build() error {
 			r.StreamSniffers = append(r.StreamSniffers, sniff.TLSClientHello)
 		case C.ProtocolHTTP:
 			r.StreamSniffers = append(r.StreamSniffers, sniff.HTTPHost)
-		case C.ProtocolQUIC:
-			r.PacketSniffers = append(r.PacketSniffers, sniff.QUICClientHello)
 		case C.ProtocolDNS:
 			r.StreamSniffers = append(r.StreamSniffers, sniff.StreamDomainNameQuery)
 			r.PacketSniffers = append(r.PacketSniffers, sniff.DomainNameQuery)

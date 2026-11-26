@@ -12,7 +12,6 @@ import (
 	C "github.com/sagernet/sing-box/constant"
 	"github.com/sagernet/sing-box/log"
 	"github.com/sagernet/sing-box/option"
-	"github.com/sagernet/sing-box/transport/v2ray"
 	"github.com/sagernet/sing-vmess/packetaddr"
 	"github.com/sagernet/sing-vmess/vless"
 	"github.com/sagernet/sing/common"
@@ -42,7 +41,6 @@ type Outbound struct {
 	multiplexDialer *mux.Client
 	tlsConfig       tls.Config
 	tlsDialer       tls.Dialer
-	transport       adapter.V2RayClientTransport
 	packetAddr      bool
 	xudp            bool
 }
@@ -65,8 +63,7 @@ func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextL
 			ServerAddress:  options.Server,
 			Options:        common.PtrValueOrDefault(options.TLS),
 			DomainResolver: options.DomainResolver,
-			KTLSCompatible: common.PtrValueOrDefault(options.Transport).Type == "" &&
-				!common.PtrValueOrDefault(options.Multiplex).Enabled &&
+			KTLSCompatible: !common.PtrValueOrDefault(options.Multiplex).Enabled &&
 				options.Flow == "",
 		})
 		if err != nil {
@@ -74,12 +71,6 @@ func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextL
 		}
 		if outbound.tlsConfig != nil {
 			outbound.tlsDialer = tls.NewDialer(outboundDialer, outbound.tlsConfig)
-		}
-	}
-	if options.Transport != nil {
-		outbound.transport, err = v2ray.NewClientTransport(ctx, outbound.dialer, outbound.serverAddr, common.PtrValueOrDefault(options.Transport), outbound.tlsConfig)
-		if err != nil {
-			return nil, E.Cause(err, "create client transport: ", options.Transport.Type)
 		}
 	}
 	if options.PacketEncoding == nil {
@@ -140,34 +131,22 @@ func (h *Outbound) MultiplexEnabled() bool {
 	if h.multiplexDialer != nil {
 		return true
 	}
-	multiplexTransport, isMultiplexTransport := h.transport.(adapter.V2RayMultiplexClientTransport)
-	return isMultiplexTransport && multiplexTransport.MultiplexEnabled()
+	return false
 }
 
 func (h *Outbound) InterfaceUpdated(ctx context.Context) {
-	if h.transport != nil {
-		h.transport.Close()
-	}
 	if h.multiplexDialer != nil {
 		h.multiplexDialer.Reset()
 	}
 }
 
 func (h *Outbound) SetKeepIdleConnections(keep bool) {
-	transportKeeper, isTransportKeeper := h.transport.(adapter.IdleConnectionKeeper)
-	if isTransportKeeper {
-		transportKeeper.SetKeepIdleConnections(keep)
-	}
 	if h.multiplexDialer != nil {
 		h.multiplexDialer.SetKeepIdleConnections(keep)
 	}
 }
 
 func (h *Outbound) CloseIdleConnections() {
-	transportKeeper, isTransportKeeper := h.transport.(adapter.IdleConnectionKeeper)
-	if isTransportKeeper {
-		transportKeeper.CloseIdleConnections()
-	}
 	if h.multiplexDialer != nil {
 		h.multiplexDialer.CloseIdleConnections()
 	}
@@ -176,9 +155,6 @@ func (h *Outbound) CloseIdleConnections() {
 func (h *Outbound) Start(stage adapter.StartStage, scope *adapter.Scope) error {
 	if stage != adapter.StartStateInitialize {
 		return nil
-	}
-	if h.transport != nil {
-		scope.Add(h.transport.Close)
 	}
 	if h.multiplexDialer != nil {
 		scope.Add(h.multiplexDialer.Close)
@@ -194,9 +170,7 @@ func (h *vlessDialer) DialContext(ctx context.Context, network string, destinati
 	metadata.Destination = destination
 	var conn net.Conn
 	var err error
-	if h.transport != nil {
-		conn, err = h.transport.DialContext(ctx)
-	} else if h.tlsDialer != nil {
+	if h.tlsDialer != nil {
 		conn, err = h.tlsDialer.DialTLSContext(ctx, h.serverAddr)
 	} else {
 		conn, err = h.dialer.DialContext(ctx, N.NetworkTCP, h.serverAddr)
@@ -236,9 +210,7 @@ func (h *vlessDialer) ListenPacket(ctx context.Context, destination M.Socksaddr)
 	metadata.Destination = destination
 	var conn net.Conn
 	var err error
-	if h.transport != nil {
-		conn, err = h.transport.DialContext(ctx)
-	} else if h.tlsDialer != nil {
+	if h.tlsDialer != nil {
 		conn, err = h.tlsDialer.DialTLSContext(ctx, h.serverAddr)
 	} else {
 		conn, err = h.dialer.DialContext(ctx, N.NetworkTCP, h.serverAddr)

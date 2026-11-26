@@ -13,11 +13,12 @@ permissions:
 jobs:
   build:
     name: Build linux-arm64-musl
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 45
     outputs:
       version: ${{ steps.spec.outputs.version }}
       upstream: ${{ steps.spec.outputs.upstream }}
+      go: ${{ steps.spec.outputs.go }}
     steps:
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
@@ -35,24 +36,26 @@ jobs:
         with:
           go-version: ${{ steps.spec.outputs.go }}
           cache-dependency-path: go.sum
-      - name: Test route and Trojan transport
-        run: go test -mod=readonly ./route/... ./transport/trojan
-      - name: Prepare upstream Chromium musl toolchain
+      - name: Check module metadata
+        id: modules
+        run: go mod tidy -diff
+      - name: Collect module metadata if out of date
+        if: failure() && steps.modules.outcome == 'failure'
+        run: go mod tidy
+      - name: Upload corrected module metadata
+        if: failure() && steps.modules.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: be7000-go-modules
+          path: |
+            go.mod
+            go.sum
+      - name: Install the musl toolchain
         run: |
-          set -euo pipefail
-          cronet_revision=$(cat .github/CRONET_GO_VERSION)
-          cronet="$RUNNER_TEMP/cronet-go"
-          git init "$cronet"
-          git -C "$cronet" remote add origin https://github.com/SagerNet/cronet-go.git
-          git -C "$cronet" sparse-checkout set --no-cone '/*' '!/lib'
-          git -C "$cronet" fetch --depth=1 --filter=blob:none origin "$cronet_revision"
-          git -C "$cronet" checkout --detach FETCH_HEAD
-          git -C "$cronet" submodule update --init --recursive --depth=1
-          cd "$cronet"
-          rm -f naiveproxy/src/build/linux/sysroot_scripts/keyring.gpg
-          GPG_TTY=/dev/null ./naiveproxy/src/build/linux/sysroot_scripts/generate_keyring.sh
-          go run ./cmd/build-naive --target=linux/arm64 --libc=musl download-toolchain
-          go run ./cmd/build-naive --target=linux/arm64 --libc=musl env >> "$GITHUB_ENV"
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends musl-tools
+      - name: Test BE7000 source
+        run: go test -mod=readonly -tags with_utls,badlinkname,tfogo_checklinkname0 -ldflags=-checklinkname=0 ./...
       - name: Build executable
         run: bash release/build-be7000.sh dist/be7000
       - name: Upload executable
@@ -78,6 +81,11 @@ jobs:
       UPSTREAM_VERSION: ${{ needs.build.outputs.upstream }}
       BUILD_REVISION: ${{ github.sha }}
     steps:
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ needs.build.outputs.go }}
+          cache: false
       - name: Download executable
         uses: actions/download-artifact@v8
         with:
@@ -109,24 +117,34 @@ jobs:
           grep -Fx "Upstream version: $UPSTREAM_VERSION" <<< "$version_info"
           grep -Fx "Revision: $BUILD_REVISION" <<< "$version_info"
           tags=$(sed -n 's/^Tags: //p' <<< "$version_info")
-          grep -Eq '(^|,)with_naive_outbound(,|$)' <<< "$tags"
-          grep -Eq '(^|,)with_musl(,|$)' <<< "$tags"
-          if grep -Eq '(^|,)with_gvisor(,|$)' <<< "$tags"; then
-            echo "The executable contains the with_gvisor build tag." >&2
+          test "$tags" = 'with_utls,with_musl,badlinkname,tfogo_checklinkname0'
+          dependencies=$(go version -m "$binary")
+          if grep -Eq 'github.com/sagernet/(quic-go|sing-quic|cronet-go|gvisor|tailscale|wireguard-go)([[:space:]/]|$)' <<< "$dependencies"; then
+            echo "The executable links an excluded module." >&2
             exit 1
           fi
           config="$RUNNER_TEMP/be7000-smoke.json"
           cat > "$config" <<'JSON'
           {
             "dns": {
-              "servers": [{"type": "udp", "tag": "dns-local", "server": "127.0.0.1"}]
+              "servers": [
+                {"type": "udp", "tag": "dns-local", "server": "127.0.0.1"},
+                {"type": "https", "tag": "doh", "server": "192.0.2.53"},
+                {"type": "hosts", "tag": "hosts", "predefined": {"example.com": ["192.0.2.1"]}}
+              ],
+              "rules": [
+                {"query_type": ["AAAA"], "action": "respond", "rcode": "REFUSED"}
+              ],
+              "final": "dns-local"
             },
             "inbounds": [
+              {"type": "direct", "tag": "dns-in", "listen": "127.0.0.1", "listen_port": 1053},
               {"type": "socks", "listen": "127.0.0.1", "listen_port": 1080},
-              {"type": "tun", "address": ["198.18.0.1/30"]}
+              {"type": "tun", "address": ["198.18.0.1/30"], "auto_route": false, "auto_redirect": false}
             ],
             "outbounds": [
               {"type": "direct", "tag": "direct"},
+              {"type": "selector", "tag": "select", "outbounds": ["proxy", "direct"], "default": "proxy"},
               {
                 "type": "vless", "tag": "proxy",
                 "server": "192.0.2.1", "server_port": 443,
@@ -143,7 +161,13 @@ jobs:
                 }
               }
             ],
-            "route": {"final": "proxy"}
+            "route": {
+              "rules": [
+                {"ip_version": 6, "action": "reject"},
+                {"inbound": ["dns-in"], "action": "hijack-dns"}
+              ],
+              "final": "select"
+            }
           }
           JSON
           "$binary" check -c "$config"

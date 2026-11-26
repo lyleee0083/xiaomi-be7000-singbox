@@ -68,7 +68,7 @@ func (h Outbound) DescribeSchema(builder schema.Builder) (*schema.Node, error) {
 		if registry == nil {
 			return nil, E.New("missing outbound options registry in context")
 		}
-		return registryUnion(builder, registry, []string{C.TypeShadowsocksR, C.TypeWireGuard}, true)
+		return registryUnion(builder, registry, nil, true)
 	})
 }
 

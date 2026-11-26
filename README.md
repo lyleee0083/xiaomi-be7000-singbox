@@ -7,7 +7,7 @@
 ## 功能
 
 - 构建面向 Armv8.0-A 的 Linux ARM64 静态可执行文件，启动时无需系统提供 glibc 或 musl 加载器。
-- 包含内置 Cronet 的 NaiveProxy 出站、Tailscale、sing-tun TCP/IP 栈，以及支持 REALITY 和 uTLS 的 VLESS。
+- 使用 sing-tun TCP/IP 栈，支持 VLESS REALITY、uTLS、Vision TCP 和 XUDP。
 - 早期握手及已配置的 TCP 前缀发送完成后，尝试进入 Go TUN 的 TCP 快速路径。
 - UDP 快速路径按需检查代理协议封装。支持的直连和原生 SOCKS5 UDP 继续使用批量收发。
 
@@ -17,17 +17,31 @@
 
 ```sh
 sha256sum -c SHA256SUMS.txt
-chmod +x sing-box-xiaomi-be7000-0.0.4
-./sing-box-xiaomi-be7000-0.0.4 version
+chmod +x sing-box-xiaomi-be7000-0.0.5
+./sing-box-xiaomi-be7000-0.0.5 version
 ```
 
 ## 配置
 
-省略 TUN 的 `stack` 字段，即可使用 sing-tun TCP/IP 栈及其 TCP 快速路径。旧配置若使用 `mixed` 或 `gvisor`，请在升级前移除 `stack` 字段。其他配置方法见 [sing-box 上游文档](https://sing-box.sagernet.org)。
+本发行版面向本地 BE7000 OpenWrt 规则，支持以下配置类型。
+
+| 用途 | 类型 |
+| --- | --- |
+| 入站 | `tun`、`socks`、`direct` |
+| 出站 | `direct`、`selector`、`vless` |
+| DNS | `udp`、`https`、`hosts`、`local` |
+
+省略 TUN 的 `stack` 字段，使用 sing-tun TCP/IP 栈。仍使用 `mixed` 的 OpenWrt 打包配置需先适配对应的 TUN 和防火墙集成。VLESS 通过 TCP 连接代理服务器，启用 REALITY、uTLS 与 Vision 时沿用对应握手。UDP 默认使用 XUDP 在 VLESS 连接内转发。
 
 ## 构建与测试
 
-[BE7000 工作流](.github/workflows/be7000.yml) 准备固定版本的 Chromium musl 工具链，并通过[构建脚本](release/build-be7000.sh)编译本仓库源码。工作流核验文件名、校验值、版本、源码提交和静态链接，并在 Ubuntu ARM64 与 Alpine 上检查包含 TUN、SOCKS 和 VLESS REALITY 的示例配置。
+[BE7000 工作流](.github/workflows/be7000.yml) 在 GitHub Actions ARM64 runner 上用 musl 编译[静态可执行文件](release/build-be7000.sh)。工作流检查模块依赖、运行 Go 测试，核验文件校验值、版本、源码提交和静态链接，并在 ARM64 Ubuntu 与 Alpine 上检查不含真实节点凭据的示例配置。
+
+## 仓库结构
+
+- `include/` 注册 BE7000 支持的入站、出站和 DNS 类型。
+- `protocol/`、`dns/` 与 `route/` 包含对应的转发、解析和路由实现。
+- [release/be7000.json](release/be7000.json) 记录发行版本和上游提交。
 
 ## 版本发布
 
