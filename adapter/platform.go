@@ -47,17 +47,6 @@ type PlatformInterface interface {
 	StartNeighborMonitor(listener NeighborUpdateListener) error
 	CloseNeighborMonitor(listener NeighborUpdateListener) error
 
-	UsePlatformShell() bool
-	CheckPlatformShell() error
-	OpenShellSession(user *PlatformUser, command string, env []string, term string, rows int32, cols int32) (ShellSession, error)
-	LookupUser(username string) (*PlatformUser, error)
-	LookupSFTPServer() (string, error)
-	ReadSystemSSHHostKey() ([]byte, error)
-	TailscaleHostname() string
-
-	UsePlatformBridge() bool
-	CreateBridge(options BridgeOptions) (BridgeSession, error)
-
 	UsePlatformAutoRedirect() bool
 	CreateAutoRedirect(options AutoRedirectOptions) (AutoRedirectSession, error)
 }
@@ -74,33 +63,6 @@ type AutoRedirectOptions struct {
 type AutoRedirectSession interface {
 	Close() error
 	UpdateRouteAddressSet() error
-}
-
-type BridgeOptions struct {
-	BridgeName string
-	MTU        uint32
-	Inet4Port  netip.Addr
-	Inet6Port  netip.Addr
-	Interface  string
-	RuleIndex  int
-	RouteTable int
-}
-
-type BridgeSession interface {
-	FileDescriptor() int
-	Name() string
-	Inet6Active() bool
-	SetEgress(interfaceName string) error
-	Close() error
-}
-
-type PlatformUser struct {
-	Username string
-	Uid      int
-	Gid      int
-	HomeDir  string
-	Shell    string
-	Groups   []int
 }
 
 type FindConnectionOwnerRequest struct {

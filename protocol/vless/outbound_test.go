@@ -88,6 +88,7 @@ func (xudpEcho) NewConnectionEx(_ context.Context, conn net.Conn, _, _ M.Socksad
 func (xudpEcho) NewPacketConnectionEx(_ context.Context, conn N.PacketConn, _, _ M.Socksaddr, onClose N.CloseHandlerFunc) {
 	go func() {
 		packet := buf.NewPacket()
+		packet.Resize(N.CalculateFrontHeadroom(conn), 0)
 		destination, err := conn.ReadPacket(packet)
 		if err == nil {
 			err = conn.WritePacket(packet, destination)
