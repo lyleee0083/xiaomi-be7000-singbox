@@ -25,18 +25,13 @@ fi
 
 git -C "$source_dir" apply --unidiff-zero "$patch"
 trap 'git -C "$source_dir" apply --reverse --unidiff-zero "$patch"' EXIT
-mkdir -p "$output_dir/$name"
 cd -- "$source_dir"
 tags="$(cat release/DEFAULT_BUILD_TAGS),with_musl"
 ldflags=$(cat release/LDFLAGS)
 CGO_ENABLED=1 GOOS=linux GOARCH=arm64 GOARM64=v8.0 GOTOOLCHAIN=local GOWORK=off \
     go build -mod=readonly -trimpath -buildvcs=true -tags "$tags" \
         -ldflags "$ldflags -X github.com/sagernet/sing-box/constant.Version=$upstream -X main.distributionVersion=$version -s -w -buildid=" \
-        -o "$output_dir/$name/sing-box" ./cmd/sing-box
+        -o "$output_dir/$name" ./cmd/sing-box
 
-install -m 0644 LICENSE "$output_dir/$name/LICENSE"
-install -m 0644 "$spec" "$output_dir/$name/BUILD-INFO.json"
-printf '%s\n' "$version" > "$output_dir/$name/VERSION"
 cd -- "$output_dir"
-tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -czf "$name.tar.gz" "$name"
-sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
+sha256sum -- "$name" > SHA256SUMS.txt

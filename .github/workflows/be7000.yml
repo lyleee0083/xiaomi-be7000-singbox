@@ -57,15 +57,19 @@ jobs:
           GPG_TTY=/dev/null ./naiveproxy/src/build/linux/sysroot_scripts/generate_keyring.sh
           go run ./cmd/build-naive --target=linux/arm64 --libc=musl download-toolchain
           go run ./cmd/build-naive --target=linux/arm64 --libc=musl env >> "$GITHUB_ENV"
-      - name: Build and package
+      - name: Build executable
         run: bash release/build-be7000.sh build/be7000-upstream dist/be7000
-      - name: Upload ARM64 package
-        uses: actions/upload-artifact@v4
+      - name: Upload executable
+        uses: actions/upload-artifact@v7
         with:
-          name: sing-box-xiaomi-be7000-linux-arm64-musl
-          path: |
-            dist/be7000/*.tar.gz
-            dist/be7000/*.tar.gz.sha256
+          path: dist/be7000/sing-box-xiaomi-be7000-${{ steps.spec.outputs.version }}
+          archive: false
+          if-no-files-found: error
+      - name: Upload checksums
+        uses: actions/upload-artifact@v7
+        with:
+          path: dist/be7000/SHA256SUMS.txt
+          archive: false
           if-no-files-found: error
 
   verify:
@@ -77,21 +81,21 @@ jobs:
       BUILD_VERSION: ${{ needs.build.outputs.version }}
       UPSTREAM_VERSION: ${{ needs.build.outputs.upstream }}
     steps:
-      - name: Download ARM64 package
-        uses: actions/download-artifact@v4
+      - name: Download executable
+        uses: actions/download-artifact@v8
         with:
-          name: sing-box-xiaomi-be7000-linux-arm64-musl
-      - name: Verify package name and metadata
+          name: sing-box-xiaomi-be7000-${{ needs.build.outputs.version }}
+      - name: Download checksums
+        uses: actions/download-artifact@v8
+        with:
+          name: SHA256SUMS.txt
+      - name: Verify delivery files
         run: |
           set -euo pipefail
           name="sing-box-xiaomi-be7000-$BUILD_VERSION"
-          sha256sum -c "$name.tar.gz.sha256"
-          tar -xzf "$name.tar.gz" -C "$RUNNER_TEMP"
-          package="$RUNNER_TEMP/$name"
-          test "$(cat "$package/VERSION")" = "$BUILD_VERSION"
-          test "$(jq -er '.version' "$package/BUILD-INFO.json")" = "$BUILD_VERSION"
-          test "$(jq -er '.upstream_version' "$package/BUILD-INFO.json")" = "$UPSTREAM_VERSION"
-          printf 'BE7000_BINARY=%s/sing-box\n' "$package" >> "$GITHUB_ENV"
+          test "$(cat SHA256SUMS.txt)" = "$(sha256sum -- "$name")"
+          chmod +x "$name"
+          printf 'BE7000_BINARY=%s/%s\n' "$PWD" "$name" >> "$GITHUB_ENV"
       - name: Check executable and configuration
         run: |
           set -euo pipefail
