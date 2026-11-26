@@ -22,6 +22,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
         with:
+          fetch-depth: 0
           persist-credentials: false
       - name: Read build versions
         id: spec
@@ -29,22 +30,17 @@ jobs:
           spec=release/be7000.json
           jq -er '"version=" + .version, "upstream=" + .upstream_version,
             "revision=" + .upstream_revision, "go=" + .go_version' "$spec" >> "$GITHUB_OUTPUT"
-      - name: Checkout pinned upstream
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
-        with:
-          repository: SagerNet/sing-box
-          ref: ${{ steps.spec.outputs.revision }}
-          path: build/be7000-upstream
-          persist-credentials: false
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ steps.spec.outputs.go }}
-          cache-dependency-path: build/be7000-upstream/go.sum
+          cache-dependency-path: go.sum
+      - name: Test route and Trojan transport
+        run: go test -mod=readonly ./route/... ./transport/trojan
       - name: Prepare upstream Chromium musl toolchain
         run: |
           set -euo pipefail
-          cronet_revision=$(cat build/be7000-upstream/.github/CRONET_GO_VERSION)
+          cronet_revision=$(cat .github/CRONET_GO_VERSION)
           cronet="$RUNNER_TEMP/cronet-go"
           git init "$cronet"
           git -C "$cronet" remote add origin https://github.com/SagerNet/cronet-go.git
@@ -58,7 +54,7 @@ jobs:
           go run ./cmd/build-naive --target=linux/arm64 --libc=musl download-toolchain
           go run ./cmd/build-naive --target=linux/arm64 --libc=musl env >> "$GITHUB_ENV"
       - name: Build executable
-        run: bash release/build-be7000.sh build/be7000-upstream dist/be7000
+        run: bash release/build-be7000.sh dist/be7000
       - name: Upload executable
         uses: actions/upload-artifact@v7
         with:
@@ -80,6 +76,7 @@ jobs:
     env:
       BUILD_VERSION: ${{ needs.build.outputs.version }}
       UPSTREAM_VERSION: ${{ needs.build.outputs.upstream }}
+      BUILD_REVISION: ${{ github.sha }}
     steps:
       - name: Download executable
         uses: actions/download-artifact@v8
@@ -110,7 +107,14 @@ jobs:
           printf '%s\n' "$version_info"
           test "$("$binary" version --name)" = "$BUILD_VERSION"
           grep -Fx "Upstream version: $UPSTREAM_VERSION" <<< "$version_info"
-          grep -E '^Tags: .*with_naive_outbound.*with_musl' <<< "$version_info"
+          grep -Fx "Revision: $BUILD_REVISION" <<< "$version_info"
+          tags=$(sed -n 's/^Tags: //p' <<< "$version_info")
+          grep -Eq '(^|,)with_naive_outbound(,|$)' <<< "$tags"
+          grep -Eq '(^|,)with_musl(,|$)' <<< "$tags"
+          if grep -Eq '(^|,)with_gvisor(,|$)' <<< "$tags"; then
+            echo "The executable contains the with_gvisor build tag." >&2
+            exit 1
+          fi
           config="$RUNNER_TEMP/be7000-smoke.json"
           cat > "$config" <<'JSON'
           {
@@ -119,7 +123,7 @@ jobs:
             },
             "inbounds": [
               {"type": "socks", "listen": "127.0.0.1", "listen_port": 1080},
-              {"type": "tun", "address": ["198.18.0.1/30"], "stack": "mixed"}
+              {"type": "tun", "address": ["198.18.0.1/30"]}
             ],
             "outbounds": [
               {"type": "direct", "tag": "direct"},

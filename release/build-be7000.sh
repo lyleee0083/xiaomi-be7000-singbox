@@ -1,32 +1,32 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 2 ]]; then
-    echo "Usage: bash release/build-be7000.sh <upstream-checkout> <output-directory>" >&2
+if [[ $# -ne 1 ]]; then
+    echo "Usage: bash release/build-be7000.sh <output-directory>" >&2
     exit 2
 fi
 
 release_dir=$(cd -- "$(dirname -- "$0")" && pwd)
-source_dir=$(cd -- "$1" && pwd)
-mkdir -p -- "$2"
-output_dir=$(cd -- "$2" && pwd)
+source_dir=$(cd -- "$release_dir/.." && pwd)
+mkdir -p -- "$1"
+output_dir=$(cd -- "$1" && pwd)
 spec="$release_dir/be7000.json"
 version=$(jq -er '.version | select(test("^[0-9]+[.][0-9]+[.][0-9]+$"))' "$spec")
 upstream=$(jq -er '.upstream_version' "$spec")
 revision=$(jq -er '.upstream_revision' "$spec")
 name="sing-box-xiaomi-be7000-$version"
-patch="$release_dir/be7000-version.patch"
 source_status=$(git -C "$source_dir" status --porcelain)
-source_revision=$(git -C "$source_dir" rev-parse HEAD)
-if [[ "$source_revision" != "$revision" || -n "$source_status" ]]; then
-    echo "Use a clean upstream checkout at $revision." >&2
+if [[ -n "$source_status" ]] || ! git -C "$source_dir" merge-base --is-ancestor "$revision" HEAD; then
+    echo "Use a clean fork checkout based on upstream $revision." >&2
     exit 1
 fi
 
-git -C "$source_dir" apply --unidiff-zero "$patch"
-trap 'git -C "$source_dir" apply --reverse --unidiff-zero "$patch"' EXIT
 cd -- "$source_dir"
 tags="$(cat release/DEFAULT_BUILD_TAGS),with_musl"
+if [[ ",$tags," == *,with_gvisor,* ]]; then
+    echo "BE7000 builds require the Go TUN stack without with_gvisor." >&2
+    exit 1
+fi
 ldflags=$(cat release/LDFLAGS)
 CGO_ENABLED=1 GOOS=linux GOARCH=arm64 GOARM64=v8.0 GOTOOLCHAIN=local GOWORK=off \
     go build -mod=readonly -trimpath -buildvcs=true -tags "$tags" \

@@ -61,6 +61,10 @@ func NewQUIC(ctx context.Context, logger log.ContextLogger, tag string, options 
 	if len(tlsConfig.NextProtos()) == 0 {
 		tlsConfig.SetNextProtos([]string{"doq"})
 	}
+	_, err = tlsConfig.STDConfig()
+	if err != nil {
+		return nil, err
+	}
 	serverAddr := options.DNSServerAddressOptions.Build()
 	if serverAddr.Port == 0 {
 		serverAddr.Port = 853
@@ -114,7 +118,9 @@ func (t *Transport) Exchange(ctx context.Context, message *mDNS.Msg) (*mDNS.Msg,
 				ctx,
 				rawConn,
 				t.tlsConfig,
-				nil,
+				&quic.Config{
+					InitialPacketSize: 1200,
+				},
 			)
 			if err != nil {
 				rawConn.Close()
@@ -188,13 +194,11 @@ func isQUICRetryError(err error) (ok bool) {
 		return true
 	}
 
-	var qIdleErr *quic.IdleTimeoutError
-	if errors.As(err, &qIdleErr) {
+	if _, ok := errors.AsType[*quic.IdleTimeoutError](err); ok {
 		return true
 	}
 
-	var resetErr *quic.StatelessResetError
-	if errors.As(err, &resetErr) {
+	if _, ok := errors.AsType[*quic.StatelessResetError](err); ok {
 		return true
 	}
 

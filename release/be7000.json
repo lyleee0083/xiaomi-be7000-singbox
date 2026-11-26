@@ -1,6 +1,7 @@
 {
-  "version": "0.0.2",
-  "upstream_version": "1.14.4",
-  "upstream_revision": "c005f35300ce76427dc285481ec5695f5b179cd2",
-  "go_version": "1.26.10"
+  "version": "0.0.3",
+  "upstream_version": "1.15.0-alpha.14-dev",
+  "upstream_branch": "testing",
+  "upstream_revision": "a93b9e8a8474253dfcab8d76aab647ea98cfcacc",
+  "go_version": "1.27.4"
 }

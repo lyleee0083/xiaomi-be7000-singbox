@@ -1,35 +1,38 @@
 # xiaomi-be7000-singbox
 
-A sing-box executable for the Xiaomi BE7000 router and its Cortex-A73 CPU.
+面向小米 BE7000 路由器及其 Cortex-A73 CPU 的 sing-box 可执行文件。
 
-The source code comes from [SagerNet/sing-box](https://github.com/SagerNet/sing-box), a universal proxy platform.
-The imported source baseline is commit [`039d829`](https://github.com/SagerNet/sing-box/commit/039d829d20c7bfb963dd73113afa9f2d1f080a70) on the upstream `testing` branch.
-The BE7000 package builds the full-featured static ARM64 executable from the upstream [`v1.14.4` release](https://github.com/SagerNet/sing-box/releases/tag/v1.14.4) at commit [`c005f35`](https://github.com/SagerNet/sing-box/commit/c005f35300ce76427dc285481ec5695f5b179cd2).
+源码来自通用代理平台 [SagerNet/sing-box](https://github.com/SagerNet/sing-box)。BE7000 发行包使用本仓库源码构建，基于上游 `testing` 分支的提交 [`a93b9e8a`](https://github.com/SagerNet/sing-box/commit/a93b9e8a8474253dfcab8d76aab647ea98cfcacc)，对应 `1.15.0-alpha.14` 的开发快照。
 
-## Features
+## 功能
 
-- Builds a static Linux ARM64 executable targeting Armv8.0-A. It starts without a system glibc or musl loader.
-- Includes the upstream feature set, including NaiveProxy outbound, Tailscale, mixed TUN, and VLESS with REALITY and uTLS. The static executable includes Cronet.
+- 构建面向 Armv8.0-A 的 Linux ARM64 静态可执行文件，启动时无需系统提供 glibc 或 musl 加载器。
+- 包含内置 Cronet 的 NaiveProxy 出站、Tailscale、sing-tun TCP/IP 栈，以及支持 REALITY 和 uTLS 的 VLESS。
+- 早期握手及已配置的 TCP 前缀发送完成后，尝试进入 Go TUN 的 TCP 快速路径。
 
-## Quick Start
+## 快速开始
 
-Download the executable and `SHA256SUMS.txt` from [GitHub Releases](https://github.com/lyleee0083/xiaomi-be7000-singbox/releases/latest). Check the digest and grant execute permission before running it.
+从成功的 [BE7000 构建](https://github.com/lyleee0083/xiaomi-be7000-singbox/actions/workflows/be7000.yml)或对应的 [GitHub Release](https://github.com/lyleee0083/xiaomi-be7000-singbox/releases) 下载可执行文件和 `SHA256SUMS.txt`，核对校验值并赋予执行权限。
 
 ```sh
 sha256sum -c SHA256SUMS.txt
-chmod +x sing-box-xiaomi-be7000-0.0.2
-./sing-box-xiaomi-be7000-0.0.2 version
+chmod +x sing-box-xiaomi-be7000-0.0.3
+./sing-box-xiaomi-be7000-0.0.3 version
 ```
 
-## Configuration
+## 配置
 
-See the [upstream sing-box documentation](https://sing-box.sagernet.org).
+省略 TUN 的 `stack` 字段，即可使用 sing-tun TCP/IP 栈及其 TCP 快速路径。旧配置若使用 `mixed` 或 `gvisor`，请在升级前移除 `stack` 字段。其他配置方法见 [sing-box 上游文档](https://sing-box.sagernet.org)。
 
-## Build and Test
+## 构建与测试
 
-The [BE7000 workflow](.github/workflows/be7000.yml) prepares the pinned upstream Chromium musl toolchain and invokes [the build script](release/build-be7000.sh). It verifies the executable filename, checksum, version and static linking. It also validates a sample mixed TUN, SOCKS and VLESS REALITY configuration on Ubuntu ARM64 and Alpine. Successful runs provide the executable and `SHA256SUMS.txt` as direct files.
+[BE7000 工作流](.github/workflows/be7000.yml) 准备固定版本的 Chromium musl 工具链，并通过[构建脚本](release/build-be7000.sh)编译本仓库源码。工作流核验文件名、校验值、版本、源码提交和静态链接，并在 Ubuntu ARM64 与 Alpine 上检查包含 TUN、SOCKS 和 VLESS REALITY 的示例配置。
 
-## License
+## 版本发布
+
+成功的构建直接提供可执行文件和 `SHA256SUMS.txt`。
+
+## 许可证
 
 ```
 Copyright (C) 2022 by nekohasekai <contact-sagernet@sekai.icu>
