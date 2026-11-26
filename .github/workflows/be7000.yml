@@ -12,36 +12,101 @@ permissions:
 
 jobs:
   build:
-    name: Package and check linux-arm64-musl
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 20
+    name: Build linux-arm64-musl
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    outputs:
+      version: ${{ steps.spec.outputs.version }}
+      upstream: ${{ steps.spec.outputs.upstream }}
     steps:
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
         with:
           persist-credentials: false
-      - name: Package the upstream static release
-        id: package
+      - name: Read build versions
+        id: spec
         run: |
-          upstream="$RUNNER_TEMP/sing-box-1.14.4-linux-arm64-musl.tar.gz"
-          curl --fail --silent --show-error --location \
-            --output "$upstream" \
-            https://github.com/SagerNet/sing-box/releases/download/v1.14.4/sing-box-1.14.4-linux-arm64-musl.tar.gz
-          archive=$(python3 release/package-be7000.py "$upstream")
-          printf 'archive=%s\n' "$archive" >> "$GITHUB_OUTPUT"
-          tar -xzf "$archive" -C "$RUNNER_TEMP"
+          spec=release/be7000.json
+          jq -er '"version=" + .version, "upstream=" + .upstream_version,
+            "revision=" + .upstream_revision, "go=" + .go_version' "$spec" >> "$GITHUB_OUTPUT"
+      - name: Checkout pinned upstream
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        with:
+          repository: SagerNet/sing-box
+          ref: ${{ steps.spec.outputs.revision }}
+          path: build/be7000-upstream
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ steps.spec.outputs.go }}
+          cache-dependency-path: build/be7000-upstream/go.sum
+      - name: Prepare upstream Chromium musl toolchain
+        run: |
+          set -euo pipefail
+          cronet_revision=$(cat build/be7000-upstream/.github/CRONET_GO_VERSION)
+          cronet="$RUNNER_TEMP/cronet-go"
+          git init "$cronet"
+          git -C "$cronet" remote add origin https://github.com/SagerNet/cronet-go.git
+          git -C "$cronet" sparse-checkout set --no-cone '/*' '!/lib'
+          git -C "$cronet" fetch --depth=1 --filter=blob:none origin "$cronet_revision"
+          git -C "$cronet" checkout --detach FETCH_HEAD
+          git -C "$cronet" submodule update --init --recursive --depth=1
+          cd "$cronet"
+          rm -f naiveproxy/src/build/linux/sysroot_scripts/keyring.gpg
+          GPG_TTY=/dev/null ./naiveproxy/src/build/linux/sysroot_scripts/generate_keyring.sh
+          go run ./cmd/build-naive --target=linux/arm64 --libc=musl download-toolchain
+          go run ./cmd/build-naive --target=linux/arm64 --libc=musl env >> "$GITHUB_ENV"
+      - name: Build and package
+        run: bash release/build-be7000.sh build/be7000-upstream dist/be7000
+      - name: Upload ARM64 package
+        uses: actions/upload-artifact@v4
+        with:
+          name: sing-box-xiaomi-be7000-linux-arm64-musl
+          path: |
+            dist/be7000/*.tar.gz
+            dist/be7000/*.tar.gz.sha256
+          if-no-files-found: error
+
+  verify:
+    name: Verify BE7000 linux-arm64-musl
+    needs: build
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    env:
+      BUILD_VERSION: ${{ needs.build.outputs.version }}
+      UPSTREAM_VERSION: ${{ needs.build.outputs.upstream }}
+    steps:
+      - name: Download ARM64 package
+        uses: actions/download-artifact@v4
+        with:
+          name: sing-box-xiaomi-be7000-linux-arm64-musl
+      - name: Verify package name and metadata
+        run: |
+          set -euo pipefail
+          name="sing-box-xiaomi-be7000-$BUILD_VERSION"
+          sha256sum -c "$name.tar.gz.sha256"
+          tar -xzf "$name.tar.gz" -C "$RUNNER_TEMP"
+          package="$RUNNER_TEMP/$name"
+          test "$(cat "$package/VERSION")" = "$BUILD_VERSION"
+          test "$(jq -er '.version' "$package/BUILD-INFO.json")" = "$BUILD_VERSION"
+          test "$(jq -er '.upstream_version' "$package/BUILD-INFO.json")" = "$UPSTREAM_VERSION"
+          printf 'BE7000_BINARY=%s/sing-box\n' "$package" >> "$GITHUB_ENV"
       - name: Check executable and configuration
         run: |
           set -euo pipefail
-          binary="$RUNNER_TEMP/sing-box-1.14.4-linux-arm64-musl/sing-box"
+          binary="$BE7000_BINARY"
           headers=$(LC_ALL=C readelf -h -l -d "$binary")
           grep -Eq 'Machine:[[:space:]]+AArch64' <<< "$headers"
           if grep -Eq 'INTERP|\(NEEDED\)' <<< "$headers"; then
             echo "BE7000 executable must be statically linked" >&2
             exit 1
           fi
-          "$binary" version
-          test "$("$binary" version --name)" = 1.14.4
+          version_info=$("$binary" version)
+          printf '%s\n' "$version_info"
+          test "$("$binary" version --name)" = "$BUILD_VERSION"
+          grep -Fx "Upstream version: $UPSTREAM_VERSION" <<< "$version_info"
+          grep -E '^Tags: .*with_naive_outbound.*with_musl' <<< "$version_info"
           config="$RUNNER_TEMP/be7000-smoke.json"
           cat > "$config" <<'JSON'
           {
@@ -77,14 +142,6 @@ jobs:
       - name: Check executable in Alpine (musl)
         run: |
           docker run --rm --network none \
-            --volume "$RUNNER_TEMP/sing-box-1.14.4-linux-arm64-musl/sing-box:/sing-box:ro" \
+            --volume "$BE7000_BINARY:/sing-box:ro" \
             --volume "$RUNNER_TEMP/be7000-smoke.json:/config.json:ro" \
             alpine:3.22 /sing-box check -c /config.json
-      - name: Upload package
-        uses: actions/upload-artifact@v4
-        with:
-          name: sing-box-xiaomi-be7000-linux-arm64-musl
-          path: |
-            ${{ steps.package.outputs.archive }}
-            ${{ steps.package.outputs.archive }}.sha256
-          if-no-files-found: error

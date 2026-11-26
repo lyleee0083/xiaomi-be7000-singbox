@@ -1,0 +1,19 @@
+diff --git a/cmd/sing-box/cmd_version.go b/cmd/sing-box/cmd_version.go
+--- a/cmd/sing-box/cmd_version.go
++++ b/cmd/sing-box/cmd_version.go
+@@ -20,0 +21 @@
++var distributionVersion string
+@@ -27,0 +29,4 @@
++	reported := C.Version
++	if distributionVersion != "" {
++		reported = distributionVersion
++	}
+@@ -29 +34 @@
+-		os.Stdout.WriteString(C.Version + "\n")
++		os.Stdout.WriteString(reported + "\n")
+@@ -32 +37,4 @@
+-	version := "sing-box version " + C.Version + "\n\n"
++	version := "sing-box version " + reported + "\n\n"
++	if distributionVersion != "" {
++		version += "Upstream version: " + C.Version + "\n"
++	}
