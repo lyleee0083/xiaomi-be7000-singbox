@@ -147,19 +147,6 @@ func (m *ConnectionManager) NewConnection(ctx context.Context, this N.Dialer, co
 	if len(metadata.TCPPrefix) > 0 {
 		remoteConn = &prefixConn{Conn: remoteConn, prefix: metadata.TCPPrefix}
 	}
-	if !metadata.TLSFragment && !metadata.TLSRecordFragment && metadata.TLSSpoof == "" && len(metadata.TCPPrefix) == 0 {
-		var spliced bool
-		spliced, err = m.spliceConnection(ctx, conn, remoteConn, onClose)
-		if err != nil {
-			N.CloseOnHandshakeFailure(conn, onClose, err)
-			remoteConn.Close()
-			m.logger.ErrorContext(ctx, err)
-			return
-		}
-		if spliced {
-			return
-		}
-	}
 	if metadata.TLSFragment || metadata.TLSRecordFragment {
 		remoteConn = tf.NewConn(remoteConn, ctx, metadata.TLSFragment, metadata.TLSRecordFragment, metadata.TLSFragmentFallbackDelay)
 	}
@@ -182,6 +169,19 @@ func (m *ConnectionManager) NewConnection(ctx context.Context, this N.Dialer, co
 	closed, sourceEOF := m.kickWriteHandshake(ctx, conn, remoteConn, waitPayload, len(metadata.TCPPrefix) > 0, false, &done, onClose)
 	if closed {
 		return
+	}
+	// A lazy outbound handshake can expose the underlying socket only after the first write.
+	if !sourceEOF && !metadata.TLSFragment && !metadata.TLSRecordFragment && metadata.TLSSpoof == "" {
+		spliced, spliceErr := m.spliceConnection(ctx, conn, remoteConn, onClose)
+		if spliceErr != nil {
+			N.CloseOnHandshakeFailure(conn, onClose, spliceErr)
+			remoteConn.Close()
+			m.logger.ErrorContext(ctx, spliceErr)
+			return
+		}
+		if spliced {
+			return
+		}
 	}
 	if sourceEOF {
 		go m.finishConnectionCopy(ctx, conn, remoteConn, nil, false, &done, onClose)

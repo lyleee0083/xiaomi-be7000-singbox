@@ -1,0 +1,149 @@
+name: BE7000
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build linux-arm64-musl
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    outputs:
+      version: ${{ steps.spec.outputs.version }}
+      upstream: ${{ steps.spec.outputs.upstream }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Read build versions
+        id: spec
+        run: |
+          spec=release/be7000.json
+          jq -er '"version=" + .version, "upstream=" + .upstream_version,
+            "revision=" + .upstream_revision, "go=" + .go_version' "$spec" >> "$GITHUB_OUTPUT"
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ steps.spec.outputs.go }}
+          cache-dependency-path: go.sum
+      - name: Test route and Trojan transport
+        run: go test -mod=readonly ./route/... ./transport/trojan
+      - name: Prepare upstream Chromium musl toolchain
+        run: |
+          set -euo pipefail
+          cronet_revision=$(cat .github/CRONET_GO_VERSION)
+          cronet="$RUNNER_TEMP/cronet-go"
+          git init "$cronet"
+          git -C "$cronet" remote add origin https://github.com/SagerNet/cronet-go.git
+          git -C "$cronet" sparse-checkout set --no-cone '/*' '!/lib'
+          git -C "$cronet" fetch --depth=1 --filter=blob:none origin "$cronet_revision"
+          git -C "$cronet" checkout --detach FETCH_HEAD
+          git -C "$cronet" submodule update --init --recursive --depth=1
+          cd "$cronet"
+          rm -f naiveproxy/src/build/linux/sysroot_scripts/keyring.gpg
+          GPG_TTY=/dev/null ./naiveproxy/src/build/linux/sysroot_scripts/generate_keyring.sh
+          go run ./cmd/build-naive --target=linux/arm64 --libc=musl download-toolchain
+          go run ./cmd/build-naive --target=linux/arm64 --libc=musl env >> "$GITHUB_ENV"
+      - name: Build executable
+        run: bash release/build-be7000.sh dist/be7000
+      - name: Upload executable
+        uses: actions/upload-artifact@v7
+        with:
+          path: dist/be7000/sing-box-xiaomi-be7000-${{ steps.spec.outputs.version }}
+          archive: false
+          if-no-files-found: error
+      - name: Upload checksums
+        uses: actions/upload-artifact@v7
+        with:
+          path: dist/be7000/SHA256SUMS.txt
+          archive: false
+          if-no-files-found: error
+
+  verify:
+    name: Verify BE7000 linux-arm64-musl
+    needs: build
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    env:
+      BUILD_VERSION: ${{ needs.build.outputs.version }}
+      UPSTREAM_VERSION: ${{ needs.build.outputs.upstream }}
+      BUILD_REVISION: ${{ github.sha }}
+    steps:
+      - name: Download executable
+        uses: actions/download-artifact@v8
+        with:
+          name: sing-box-xiaomi-be7000-${{ needs.build.outputs.version }}
+      - name: Download checksums
+        uses: actions/download-artifact@v8
+        with:
+          name: SHA256SUMS.txt
+      - name: Verify delivery files
+        run: |
+          set -euo pipefail
+          name="sing-box-xiaomi-be7000-$BUILD_VERSION"
+          test "$(cat SHA256SUMS.txt)" = "$(sha256sum -- "$name")"
+          chmod +x "$name"
+          printf 'BE7000_BINARY=%s/%s\n' "$PWD" "$name" >> "$GITHUB_ENV"
+      - name: Check executable and configuration
+        run: |
+          set -euo pipefail
+          binary="$BE7000_BINARY"
+          headers=$(LC_ALL=C readelf -h -l -d "$binary")
+          grep -Eq 'Machine:[[:space:]]+AArch64' <<< "$headers"
+          if grep -Eq 'INTERP|\(NEEDED\)' <<< "$headers"; then
+            echo "BE7000 executable must be statically linked" >&2
+            exit 1
+          fi
+          version_info=$("$binary" version)
+          printf '%s\n' "$version_info"
+          test "$("$binary" version --name)" = "$BUILD_VERSION"
+          grep -Fx "Upstream version: $UPSTREAM_VERSION" <<< "$version_info"
+          grep -Fx "Revision: $BUILD_REVISION" <<< "$version_info"
+          grep -E '^Tags: .*with_naive_outbound.*with_musl' <<< "$version_info"
+          config="$RUNNER_TEMP/be7000-smoke.json"
+          cat > "$config" <<'JSON'
+          {
+            "dns": {
+              "servers": [{"type": "udp", "tag": "dns-local", "server": "127.0.0.1"}]
+            },
+            "inbounds": [
+              {"type": "socks", "listen": "127.0.0.1", "listen_port": 1080},
+              {"type": "tun", "address": ["198.18.0.1/30"]}
+            ],
+            "outbounds": [
+              {"type": "direct", "tag": "direct"},
+              {
+                "type": "vless", "tag": "proxy",
+                "server": "192.0.2.1", "server_port": 443,
+                "uuid": "00000000-0000-4000-8000-000000000001",
+                "flow": "xtls-rprx-vision",
+                "tls": {
+                  "enabled": true, "server_name": "example.com",
+                  "utls": {"enabled": true, "fingerprint": "chrome"},
+                  "reality": {
+                    "enabled": true,
+                    "public_key": "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA",
+                    "short_id": "0123456789abcdef"
+                  }
+                }
+              }
+            ],
+            "route": {"final": "proxy"}
+          }
+          JSON
+          "$binary" check -c "$config"
+      - name: Check executable in Alpine (musl)
+        run: |
+          docker run --rm --network none \
+            --volume "$BE7000_BINARY:/sing-box:ro" \
+            --volume "$RUNNER_TEMP/be7000-smoke.json:/config.json:ro" \
+            alpine:3.22 /sing-box check -c /config.json

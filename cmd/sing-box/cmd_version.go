@@ -18,6 +18,7 @@ var commandVersion = &cobra.Command{
 }
 
 var nameOnly bool
+var distributionVersion string
 
 func init() {
 	commandVersion.Flags().BoolVarP(&nameOnly, "name", "n", false, "print version name only")
@@ -25,11 +26,18 @@ func init() {
 }
 
 func printVersion(cmd *cobra.Command, args []string) {
+	reportedVersion := C.Version
+	if distributionVersion != "" {
+		reportedVersion = distributionVersion
+	}
 	if nameOnly {
-		os.Stdout.WriteString(C.Version + "\n")
+		os.Stdout.WriteString(reportedVersion + "\n")
 		return
 	}
-	version := "sing-box version " + C.Version + "\n\n"
+	version := "sing-box version " + reportedVersion + "\n\n"
+	if distributionVersion != "" {
+		version += "Upstream version: " + C.Version + "\n"
+	}
 	version += "Environment: " + runtime.Version() + " " + runtime.GOOS + "/" + runtime.GOARCH + "\n"
 
 	var tags string
