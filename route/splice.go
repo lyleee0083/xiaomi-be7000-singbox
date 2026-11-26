@@ -21,12 +21,11 @@ import (
 
 type spliceTarget struct {
 	socket        tun.SpliceSocket
-	offload       N.PacketOffload
 	readCounters  []N.CountFunc
 	writeCounters []N.CountFunc
 }
 
-func unwrapSpliceTarget(conn any, allowOffload bool) (spliceTarget, bool) {
+func unwrapSpliceTarget(conn any) (spliceTarget, bool) {
 	var target spliceTarget
 	for {
 		readCounter, isReadCounter := conn.(N.ReadCounter)
@@ -70,14 +69,6 @@ func unwrapSpliceTarget(conn any, allowOffload bool) (spliceTarget, bool) {
 		writerWithUpstream, isWriterWithUpstream := conn.(N.WriterWithUpstream)
 		if !isReaderWithUpstream || !readerWithUpstream.ReaderReplaceable() ||
 			!isWriterWithUpstream || !writerWithUpstream.WriterReplaceable() {
-			if allowOffload {
-				upstream, offload := N.UnwrapPacketOffload(conn)
-				if socket, isSocket := upstream.(tun.SpliceSocket); isSocket && offload != nil {
-					target.socket = socket
-					target.offload = offload
-					return target, true
-				}
-			}
 			return spliceTarget{}, false
 		}
 		socket, isSocket := conn.(tun.SpliceSocket)
@@ -125,7 +116,7 @@ func (m *ConnectionManager) spliceConnection(ctx context.Context, conn net.Conn,
 	if !isGoConn {
 		return false, nil
 	}
-	target, isTarget := unwrapSpliceTarget(remoteConn, false)
+	target, isTarget := unwrapSpliceTarget(remoteConn)
 	if !isTarget {
 		return false, nil
 	}
@@ -252,7 +243,7 @@ func (m *ConnectionManager) splicePacketConnection(ctx context.Context, conn N.P
 	if !isSpliceSource {
 		return conn, false
 	}
-	target, isTarget := unwrapSpliceTarget(remote, true)
+	target, isTarget := unwrapSpliceTarget(remote)
 	if !isTarget {
 		return conn, false
 	}
@@ -281,7 +272,6 @@ func (m *ConnectionManager) splicePacketConnection(ctx context.Context, conn N.P
 		Timeout:       udpTimeout,
 		NAT:           nat,
 		Cached:        cached,
-		Offload:       target.offload,
 		FrontHeadroom: N.CalculateFrontHeadroom(remote),
 		RearHeadroom:  N.CalculateRearHeadroom(remote),
 	}) {

@@ -9,7 +9,7 @@
 - 构建面向 Armv8.0-A 的 Linux ARM64 静态可执行文件，启动时无需系统提供 glibc 或 musl 加载器。
 - 使用 sing-tun TCP/IP 栈，支持 VLESS REALITY、uTLS、Vision TCP 和 XUDP。
 - 早期握手及已配置的 TCP 前缀发送完成后，尝试进入 Go TUN 的 TCP 快速路径。
-- UDP 快速路径按需检查代理协议封装。支持的直连和原生 SOCKS5 UDP 继续使用批量收发。
+- Go TUN 直连 UDP 满足条件时使用批量收发。VLESS UDP 直接进入 XUDP 转发，跳过原生 UDP 套接字的快速路径检查。
 
 ## 快速开始
 
@@ -31,7 +31,7 @@ chmod +x sing-box-xiaomi-be7000-0.0.5
 | 出站 | `direct`、`selector`、`vless` |
 | DNS | `udp`、`https`、`hosts`、`local` |
 
-省略 TUN 的 `stack` 字段，使用 sing-tun TCP/IP 栈。仍使用 `mixed` 的 OpenWrt 打包配置需先适配对应的 TUN 和防火墙集成。VLESS 通过 TCP 连接代理服务器，启用 REALITY、uTLS 与 Vision 时沿用对应握手。UDP 默认使用 XUDP 在 VLESS 连接内转发。
+省略 TUN 的 `stack` 字段，使用 sing-tun TCP/IP 栈。仍使用 `mixed` 的 OpenWrt 打包配置需先适配对应的 TUN 和防火墙集成。VLESS 通过 TCP 连接代理服务器，启用 REALITY、uTLS 与 Vision 时沿用对应握手。UDP 使用 XUDP 在 VLESS 连接内转发，`packet_encoding` 可省略或设为 `xudp`。
 
 ## 构建与测试
 

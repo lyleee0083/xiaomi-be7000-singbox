@@ -263,16 +263,17 @@ func (m *ConnectionManager) NewPacketConnection(ctx context.Context, this N.Dial
 		return
 	}
 	udpTimeout := packetTimeout(&metadata)
-	var (
-		spliceRemote any = remotePacketConn
-		spliced      bool
-	)
-	if remoteConn != nil {
-		spliceRemote = remoteConn
-	}
-	conn, spliced = m.splicePacketConnection(ctx, conn, spliceRemote, &metadata, destinationAddress, udpTimeout, onClose)
-	if spliced {
-		return
+	// XUDP needs its VLESS stream codec in both directions.
+	if outbound, isOutbound := this.(adapter.Outbound); !isOutbound || outbound.Type() != C.TypeVLESS {
+		var spliceRemote any = remotePacketConn
+		if remoteConn != nil {
+			spliceRemote = remoteConn
+		}
+		var spliced bool
+		conn, spliced = m.splicePacketConnection(ctx, conn, spliceRemote, &metadata, destinationAddress, udpTimeout, onClose)
+		if spliced {
+			return
+		}
 	}
 	if destinationAddress.IsValid() {
 		var originDestination M.Socksaddr

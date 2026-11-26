@@ -19,8 +19,8 @@ func TestUnwrapUDPSpliceTarget(t *testing.T) {
 	t.Run("direct", func(t *testing.T) {
 		tracked := manager.TrackPacketConn(listener)
 		wrapped := &transparentPacketConn{PacketConn: tracked}
-		target, ok := unwrapSpliceTarget(wrapped, true)
-		if !ok || target.socket != tracked.(*trackedPacketConn) || target.offload != nil {
+		target, ok := unwrapSpliceTarget(wrapped)
+		if !ok || target.socket != tracked.(*trackedPacketConn) {
 			t.Fatalf("unexpected direct target: %+v, ok=%v", target, ok)
 		}
 		if wrapped.readChecks != 1 || wrapped.writeChecks != 1 {
@@ -40,12 +40,8 @@ func TestUnwrapUDPSpliceTarget(t *testing.T) {
 		t.Cleanup(func() { association.Close() })
 
 		wrapped := &transparentPacketConn{PacketConn: association}
-		target, ok := unwrapSpliceTarget(wrapped, true)
-		if !ok || target.socket != tracked.(*trackedConn) || target.offload == nil {
-			t.Fatalf("unexpected SOCKS5 target: %+v, ok=%v", target, ok)
-		}
-		if _, ok := unwrapSpliceTarget(wrapped, false); ok {
-			t.Fatal("SOCKS5 association was accepted without its datagram codec")
+		if _, ok := unwrapSpliceTarget(wrapped); ok {
+			t.Fatal("packet splice accepted a socket that still needs the SOCKS5 codec")
 		}
 	})
 }

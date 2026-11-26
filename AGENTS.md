@@ -20,7 +20,8 @@
 ## Build and Verification
 
 - See [README.md](README.md) for the SagerNet/sing-box source and imported revision. Check the source commit, submodules, and licenses when updating upstream code. Preserve project-specific changes.
-- Use `go.mod`, `Makefile`, and `.github/workflows/` to determine the current Go version, build targets, build tags, and test entry points. Verify the affected platforms and keep resources embedded by supported builds.
+- Use `go.mod`, `release/be7000.json`, `release/build-be7000.sh`, and `.github/workflows/be7000.yml` to determine the current Go version, build tags, and verification entry points. Verify the affected platforms and keep resources embedded by supported builds.
+- Keep the BE7000 protocol registry aligned with the local OpenWrt profiles. Update the registry, retained source, module metadata, and configuration checks together.
 - Check Linux ARM64 compatibility for BE7000 changes. Report local or CI builds separately from router acceptance. Keep releases, container publication, and deployment within task authorization.
 
 ## Versioned deliverables

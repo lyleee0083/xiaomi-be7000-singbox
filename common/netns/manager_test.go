@@ -5,9 +5,11 @@ package netns
 import (
 	"bufio"
 	"context"
+	"errors"
 	"os"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -43,6 +45,9 @@ func TestUnshareNamespace(t *testing.T) {
 	}
 	scope := adapter.NewScope(context.Background(), log.NewNOPFactory().Logger())
 	err = manager.Start(adapter.StartStateInitialize, scope)
+	if errors.Is(err, syscall.EPERM) {
+		t.Skipf("network namespace creation requires privileges: %v", err)
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
