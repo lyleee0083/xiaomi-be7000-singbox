@@ -9,6 +9,7 @@
 - 构建面向 Armv8.0-A 的 Linux ARM64 静态可执行文件，启动时无需系统提供 glibc 或 musl 加载器。
 - 包含内置 Cronet 的 NaiveProxy 出站、Tailscale、sing-tun TCP/IP 栈，以及支持 REALITY 和 uTLS 的 VLESS。
 - 早期握手及已配置的 TCP 前缀发送完成后，尝试进入 Go TUN 的 TCP 快速路径。
+- UDP 快速路径按需检查代理协议封装。支持的直连和原生 SOCKS5 UDP 继续使用批量收发。
 
 ## 快速开始
 
@@ -16,8 +17,8 @@
 
 ```sh
 sha256sum -c SHA256SUMS.txt
-chmod +x sing-box-xiaomi-be7000-0.0.3
-./sing-box-xiaomi-be7000-0.0.3 version
+chmod +x sing-box-xiaomi-be7000-0.0.4
+./sing-box-xiaomi-be7000-0.0.4 version
 ```
 
 ## 配置

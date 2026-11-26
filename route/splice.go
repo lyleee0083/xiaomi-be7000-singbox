@@ -61,29 +61,23 @@ func unwrapSpliceTarget(conn any, allowOffload bool) (spliceTarget, bool) {
 			conn = reader
 			continue
 		}
-		if allowOffload {
-			upstream, offload := N.UnwrapPacketOffload(conn)
-			if offload != nil {
-				socket, isSocket := upstream.(tun.SpliceSocket)
-				if !isSocket {
-					return spliceTarget{}, false
-				}
-				target.socket = socket
-				target.offload = offload
-				return target, true
-			}
-		}
 		ipOnlyConn, isIPOnly := conn.(*iponly.PacketConn)
 		if isIPOnly {
 			conn = ipOnlyConn.Upstream()
 			continue
 		}
 		readerWithUpstream, isReaderWithUpstream := conn.(N.ReaderWithUpstream)
-		if !isReaderWithUpstream || !readerWithUpstream.ReaderReplaceable() {
-			return spliceTarget{}, false
-		}
 		writerWithUpstream, isWriterWithUpstream := conn.(N.WriterWithUpstream)
-		if !isWriterWithUpstream || !writerWithUpstream.WriterReplaceable() {
+		if !isReaderWithUpstream || !readerWithUpstream.ReaderReplaceable() ||
+			!isWriterWithUpstream || !writerWithUpstream.WriterReplaceable() {
+			if allowOffload {
+				upstream, offload := N.UnwrapPacketOffload(conn)
+				if socket, isSocket := upstream.(tun.SpliceSocket); isSocket && offload != nil {
+					target.socket = socket
+					target.offload = offload
+					return target, true
+				}
+			}
 			return spliceTarget{}, false
 		}
 		socket, isSocket := conn.(tun.SpliceSocket)
@@ -182,6 +176,10 @@ func unwrapSpliceSource(conn N.PacketConn) (spliceSource, bool) {
 	writer, writeCounters := N.UnwrapCountPacketWriter(conn, nil)
 	natWriter, isNATWriter := N.CastPacketWriter[*tun.UDPNatConn](writer)
 	if !isNATWriter {
+		return spliceSource{}, false
+	}
+	// Other TUN stacks also use UDPNatConn but do not support Go socket splicing.
+	if _, isGoWriter := natWriter.Upstream().(*tun.GoPacketConn); !isGoWriter {
 		return spliceSource{}, false
 	}
 	source.writeCounters = writeCounters
