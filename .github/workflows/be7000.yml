@@ -150,6 +150,7 @@ jobs:
               }
             ],
             "route": {
+              "default_domain_resolver": "dns-local",
               "rules": [
                 {"ip_version": 6, "action": "reject"},
                 {"inbound": ["dns-in"], "action": "hijack-dns"}
